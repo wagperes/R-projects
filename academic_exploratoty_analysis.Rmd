@@ -1,0 +1,302 @@
+---
+title: "Exploratory Analysis: Wine Quality Dataset"
+author: "Wagner Peres"
+date: "July 2018"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#knitr::opts_knit$set(root.dir = 'C:/Users/wagpe/OneDrive/aulas/R/trabalho_final')
+setwd("C:/Users/wagpe/OneDrive/aulas/R/trabalho_final")
+```
+
+This is an academic explotory analysis done for the R class and the dataset used is the "Wine Quality". It can be found on data.world or on kaggle.com.
+This dataset has separated csv's, winequality-white.csv and winequality-red.csv, where the inputs are physicochemical variables and the the output is a sensory score variable given by sommeliers.
+
+####Source:
+
+Paulo Cortez, University of Minho, Guimarães, Portugal, http://www3.dsi.uminho.pt/pcortez 
+A. Cerdeira, F. Almeida, T. Matos and J. Reis, Viticulture Commission of the Vinho Verde Region(CVRVV), Porto, Portugal 
+@2009
+
+####Attribute Information:
+
+For more information, read [Cortez et al., 2009]. 
+Input variables (based on physicochemical tests): 
+1 - fixed acidity 
+2 - volatile acidity 
+3 - citric acid 
+4 - residual sugar 
+5 - chlorides 
+6 - free sulfur dioxide 
+7 - total sulfur dioxide 
+8 - density 
+9 - pH 
+10 - sulphates 
+11 - alcohol 
+Output variable (based on sensory data): 
+12 - quality (score between 0 and 10)
+
+
+### Packages
+
+```{r pacotes}
+
+library(needs)
+needs(tidyverse)
+needs(data.table)
+needs(gapminder) 
+needs(gridExtra) 
+needs(readxl)         
+needs(GGally)
+needs(infer)     
+needs(nortest)   
+needs(car)       
+needs(broom)     
+needs(agricolae) 
+needs(dygraphs)
+needs(D3plusR) # devtools::install_github('paulofelipe/D3plusR')
+needs(highcharter)
+needs(leaflet)
+needs(collapsibleTree)
+needs(magrittr)  
+needs(corrplot)  
+needs(plotly)    
+needs(lmtest)    
+needs(sandwich)
+needs(DT)
+
+```
+
+### Importing and data cleaning
+
+```{r importacao}
+
+# The import function will generate a parsing error for the column "total sulfur dioxide" because the rows 1296 ans 1297 are not integers, the reason why I'm using the col_types parameter.
+
+base_red = read_csv("winequality-red.csv",col_types = "dddddddddddi")
+base_white = read_csv("winequality-white.csv")
+
+#Adding the "type" columns before merge the datasets.
+
+base_red = base_red %>% mutate(type = "red")
+base_white = base_white %>% mutate(type = "white")
+
+df_wine = rbind(base_red,base_white)
+
+#Convert the new column to factor type
+df_wine$type = as.factor(df_wine$type)
+
+#Removing the white spaces
+columns = names(df_wine)
+
+columns = gsub(" ", "_", columns)
+
+names(df_wine) = columns
+
+#Checking the NA's
+sum(is.na(df_wine) == TRUE)
+
+```
+
+### Data Exploration
+
+```{r exploracao}
+
+table(df_wine$quality,df_wine$type)
+
+datatable(df_wine, options = list(pageLength = 5))
+
+plot(df_wine)
+
+hchart(cor(df_wine[1:12]),title="test")
+
+```
+
+### Notes:  
+
+#####Analysing the correlations values we can see the target "quality" is more affected by "alcohol", density and "volatile acidity". I'm going to focus the analysis on this features for this study.
+
+#####There are more white wines than reds.
+
+### Data Summary
+```{r resumo}
+summary(df_wine)
+
+summary(df_wine %>%filter(type == 'red'))
+
+summary(df_wine %>%filter(type == 'white'))
+
+#Mean and median
+
+red_quality_mean = df_wine %>% select(quality,type) %>% filter(type=='red')
+mean(red_quality_mean$quality) 
+median(red_quality_mean$quality)
+
+white_quality_mean = df_wine %>% select(quality,type) %>% filter(type=='white')
+mean(white_quality_mean$quality)
+median(white_quality_mean$quality)
+
+```
+
+### Notes: 
+
+##### Comparing the means by wine type we can see that both are similar: **red == 5.63** and **white == 5.87**. Can we consider them as equals? Let's see in the hypothesis test.
+##### Overall mean is 5.81.
+##### The median for both is the same: 6.
+
+### Score distribution by wine type
+
+```{r}
+ggplot(red_quality_mean, aes(x = quality)) + 
+  geom_histogram() +
+  ggtitle('Red wine score distribution')
+
+ggplot(white_quality_mean, aes(x = quality)) + 
+  geom_histogram() +
+  ggtitle('White wine score distribution')
+
+```
+
+##### Note: Both types have a normal and similar distribution.
+
+
+### Alcohol X Volatile_acidity  
+
+```{r}
+ggplotly(ggplot(df_wine, aes(x=alcohol, y=volatile_acidity, color= as.factor(quality),alpha=0.5)) + 
+  facet_wrap('type', ncol=2) +
+  geom_point() +
+  ggtitle('Alcohol X Volatile_acidity by type'))
+
+ggplotly(ggplot(df_wine, aes(x=alcohol, y=volatile_acidity, color=type,alpha=0.5)) + geom_point() +
+  facet_wrap('quality', ncol=2)+
+  ggtitle('Alcohol X Volatile_acidity by quality'))
+
+```
+
+### Alcohol X Density  
+
+```{r}
+ggplotly(ggplot(df_wine, aes(x=alcohol, y=density, color= as.factor(quality),alpha=0.5)) + 
+  facet_wrap('type', ncol=2) +
+  geom_point()+
+  ggtitle('Alcohol X Density by type'))
+
+ggplotly(ggplot(df_wine, aes(x=alcohol, y=density, color=type,alpha=0.5)) + geom_point() +
+facet_wrap('quality', ncol=2)+
+ggtitle('Alcohol X Density by quality'))
+
+```
+
+### Alcohol X Quality
+
+```{r}
+ggplotly(ggplot(aes(x=alcohol,alpha=0.5),data =df_wine) + 
+  geom_density(aes(fill = type))+
+  facet_wrap(~quality)+
+  ggtitle('Alcohol X quality density'))
+
+ggplotly(ggplot(df_wine, aes(x=as.factor(quality), y=alcohol, fill=type,alpha=0.5)) +
+  geom_boxplot()+
+  ggtitle('alcohol X quality boxplot'))
+
+```
+
+### Volatile_acidity X Quality
+
+```{r}
+
+ggplotly(ggplot(aes(x=volatile_acidity,alpha=0.5),data =df_wine) + 
+  geom_density(aes(fill = type))+
+  facet_wrap(~quality)+
+  ggtitle('Volatile_acidity X quality density'))
+
+ggplotly(ggplot(df_wine, aes(x=as.factor(quality), y=volatile_acidity, fill=type,alpha=0.5)) +
+  geom_boxplot()+
+  ggtitle('Volatile_acidity X quality boxplot'))
+
+```
+
+### Density X Quality
+
+```{r}
+
+ggplotly(ggplot(aes(x=density,alpha=0.5),data =df_wine) + 
+  geom_density(aes(fill = type))+
+  facet_wrap(~quality)+
+  ggtitle('Density X quality density'))
+
+ggplotly(ggplot(df_wine, aes(x=as.factor(quality), y=density, fill=type,alpha=0.5)) +
+  geom_boxplot()+
+  ggtitle('Density X quality boxplot'))
+
+```
+
+
+### Notes:  
+##### - The red wines looks more acid than the white ones.
+##### - Outliers can be found between 5 and 6.
+##### - The lower the density the higher the alcohol.
+##### - Wines with more alcohol have better scores.
+##### - We can say the acidity affects more the score for the white wines than the reds.
+
+
+### Hypothesis test: Are the means the same for white and red wines?
+
+##### H0: Yes, they are.  
+##### H1: Nope.  
+
+```{r}
+t.test(quality ~ type, data = df_wine)
+```
+
+##### Result: The p value is **2.2e-16**, so it's less than 5% and **rejects** H0!
+
+### Multiple Regression  
+##### Goal: Try to explain the "quality" by "alcohol", "density" and "volatile_acidity"  
+
+```{r}
+corMatrix_dfwine <- cor(df_wine[1:12])
+corrplot(corMatrix_dfwine, method = "ellipse")
+
+#quality by alcohol
+
+modelo1 <- lm(quality ~ alcohol, data = df_wine[1:12])
+summary(modelo1)
+plot(modelo1)
+
+#quality by alcohol + volatile_acidity
+
+modelo2 <- lm(quality ~ alcohol + volatile_acidity, data = df_wine[1:12])
+summary(modelo2)
+plot(modelo2)
+
+#quality by alcohol + volatile_acidity + density
+
+modelo3 <- lm(quality ~ alcohol + volatile_acidity +density , data = df_wine[1:12])
+summary(modelo3)
+plot(modelo3)
+
+anova(modelo1,modelo2)
+
+# Model 2 is better than model 1 because the p value is less than 5%, so we accept H1.
+
+anova(modelo2,modelo3)
+
+#Model 3 is better than model 2, so we keep this model considering the features above.
+
+```
+
+### Final Notes:
+
+#####The dataset shows that we really have the alcohol and the acidity affecting the wine scores.
+#####Also is possible to see that different types of wine reacts differently for acidity and density.
+#####The prediction did not provide a good score, but for sure using the other features and trying other kernels we can obtain better scores.
+
+
+
+
